@@ -1,13 +1,19 @@
 pipeline{
 
     agent any
+    
+    tools {
+	    maven "Maven"
+        
+	 	}
+
 
     stages{
 
        stage('clone the project'){
         steps{
             
-           git branch: 'master', url: 'https://github.com/ifocusbatch2/spring-petclinic.git'
+           git branch: 'main', url: 'https://github.com/jaiswaladi246/Petclinic.git'
           
         }
 
@@ -38,6 +44,61 @@ pipeline{
         }
 
        }
+
+     stage('Sonarqube Analysis'){
+        steps{
+           sh "mvn clean verify sonar:sonar \
+         -Dsonar.projectKey='spring-petclinic' \
+         -Dsonar.projectName='spring-petclinic' \
+         -Dsonar.host.url='http://localhost:9000' \
+         -Dsonar.token=sqp_b678f83ca558a3bb7735efadfdbd4697adbebc28"
+        }
+
+       }
+    
+    stage ('Artifactory Server'){
+            steps {
+               rtServer (
+                 id: "Artifactory",
+                 url: 'http://localhost:8081/artifactory',
+                 username: 'admin',
+                  password: 'password',
+                  bypassProxy: true,
+                   timeout: 300
+                        )
+            }
+        }
+
+stage('Upload'){
+            steps{
+                rtUpload (
+                 serverId:"Artifactory" ,
+                  spec: '''{
+                   "files": [
+                      {
+                      "pattern": "*.war",
+                      "target": "ifocus-solutions-pvt-ltd"
+                      }
+                            ]
+                           }''',
+                        )
+            }
+        }
+
+        stage ('Publish build info') {
+            steps {
+                rtPublishBuildInfo (
+                    serverId: "Artifactory"
+                )
+            }
+        }
+       stage('Deploy to Tomcat Server'){
+        steps{
+           deploy adapters: [tomcat9(credentialsId: 'tomcat', path: '', url: 'http://localhost:8080/')], contextPath: 'Ifocus Solutions Pvt Limited', war: 'target/*.war'
+        }
+
+       }
+
 
     }
 }
